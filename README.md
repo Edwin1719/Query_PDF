@@ -8,10 +8,9 @@
 ## Features
 
 - **Work environment and data loading:** Installation of Libraries, work environment and Database from public link
-- **Definition of Page Parameters:** Page configuration and definition of the calculation function with cosine similarity
-- **Structuring of the Streamlit Page and definition of formats:** Aggregation of the different elements that make up the product recommendation page
-- **Exploitation of results:** Displaying the results of the product recommendation algorithm
-
+- **Uploading files and creating text snippets:** Loading the PDF file from the local system and segmenting the document into parts to arrange the embedding model
+- **Embedding model and connection with the OpenAI API:** Definition of the Embedding model and connection with the OpenAI LLM API Key, for the interpretation of text fragments.
+- **PDF Consultation and Analysis:** Formulation of the question with the selected model, number of fragments chosen and calculation of the operating cost.
 
 ## **Documentation**
-This repository contains a python script that runs an algorithm for recommending products on offer for an Ecommerce maket place in Colombia
+! https://www.youtube.com/watch?v=iDrpdkIHMq8&t=312s
