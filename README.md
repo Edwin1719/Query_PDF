@@ -15,3 +15,4 @@
 ## **Documentation**
 ! https://www.youtube.com/watch?v=iDrpdkIHMq8&t=312s
 ! https://myscale.com/docs/es/advanced-applications/chatdata/
+! https://is.gd/API_OPENAI
