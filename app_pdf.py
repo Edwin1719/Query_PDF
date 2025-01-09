@@ -4,9 +4,9 @@ from PyPDF2 import PdfReader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.chat_models import ChatOpenAI
-from langchain.chains.question_answering import load_qa_chain
+from langchain.chains import VectorDBQA
+from langchain.vectorstores import FAISS
 from langchain.schema import Document
-from sklearn.metrics.pairwise import cosine_similarity
 from st_social_media_links import SocialMediaIcons
 import numpy as np
 import os
@@ -22,15 +22,6 @@ st.markdown(
         background-color: #2E2E2E;
         color: white;
     }
-    .stTitle {
-        color: white;
-    }
-    .stTextInput > div > input {
-        color: black;
-    }
-    .stTextArea > div > textarea {
-        color: black;
-    }
     </style>
     """,
     unsafe_allow_html=True
@@ -40,65 +31,63 @@ st.markdown(
 st.markdown("<h1 style='text-align: center; color: white;'>Consultas Inteligentes PDF</h1>", unsafe_allow_html=True)
 st.image("https://cdn-kktxrz66sku8.vultrcdn.com/wp-content/uploads/2023/02/Save-ChatGPT-Conversations-as-a-PDF.jpg", width=100)
 
-# Cargar la API de OpenAI
+# Entrada de clave API y archivo PDF
 openai_api_key = st.text_input("Introduce tu API Key de OpenAI", type="password")
-
-# Cargar el archivo PDF
 uploaded_file = st.file_uploader("Sube tu archivo PDF", type="pdf")
 
 # Función para procesar el PDF
 @st.cache_data
 def process_pdf(file):
     pdf_reader = PdfReader(file)
-    text = ""
-    for page in pdf_reader.pages:
-        text += page.extract_text()
-    return text
+    return "".join(page.extract_text() for page in pdf_reader.pages if page.extract_text())
 
-# Función para realizar la búsqueda de similitud con sklearn
-def similarity_search_sklearn(question, embeddings, chunks, k=3):
-    embeddings_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    question_embedding = np.array(embeddings_model.embed_query(question)).reshape(1, -1)
-    similarities = cosine_similarity(question_embedding, embeddings)[0]
-    most_similar_indices = similarities.argsort()[-k:][::-1]  # Obtener los índices de los k más similares
-    return [chunks[i] for i in most_similar_indices]
+# Función para crear y cargar embeddings
+@st.cache_resource
+def create_vector_store(chunks):
+    embeddings_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
+    docs = [Document(page_content=chunk) for chunk in chunks]
+    vector_store = FAISS.from_documents(docs, embeddings_model)
+    return vector_store
 
 # Procesamiento del archivo PDF y generación de embeddings
 if uploaded_file and openai_api_key:
-    # Leer el archivo PDF
-    text = process_pdf(uploaded_file)
+    try:
+        # Leer y procesar el archivo PDF
+        with st.spinner("Procesando el archivo PDF..."):
+            text = process_pdf(uploaded_file)
 
-    # Dividir el texto en chunks
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=700, chunk_overlap=100, length_function=len)
-    chunks = text_splitter.split_text(text)
+        if not text:
+            st.error("El archivo PDF no contiene texto legible.")
+        else:
+            # Dividir el texto en chunks
+            text_splitter = RecursiveCharacterTextSplitter(chunk_size=700, chunk_overlap=100)
+            chunks = text_splitter.split_text(text)
 
-    # Crear embeddings usando HuggingFace
-    embeddings_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    embeddings = np.array([np.array(embeddings_model.embed_documents([chunk])[0]) for chunk in chunks])
+            # Crear el almacén de vectores
+            with st.spinner("Generando embeddings y configurando búsqueda..."):
+                vector_store = create_vector_store(chunks)
 
-    # Preguntar al documento PDF
-    pregunta = st.text_input("Haz una pregunta al PDF")
-    
-    if pregunta:
-        os.environ["OPENAI_API_KEY"] = openai_api_key
-        llm = ChatOpenAI(model_name='gpt-3.5-turbo')
-        chain = load_qa_chain(llm, chain_type="stuff")
+            # Entrada de pregunta al documento PDF
+            pregunta = st.text_input("Haz una pregunta al PDF")
 
-        # Buscar los chunks más relevantes con cosine similarity
-        docs = similarity_search_sklearn(pregunta, embeddings, chunks)
+            if pregunta:
+                os.environ["OPENAI_API_KEY"] = openai_api_key
+                llm = ChatOpenAI(model_name="gpt-3.5-turbo")
+                qa_chain = VectorDBQA.from_chain_type(llm=llm, vectorstore=vector_store, chain_type="stuff")
 
-        # Convertir los chunks en objetos Document
-        docs = [Document(page_content=chunk) for chunk in docs]
+                # Realizar la consulta
+                with st.spinner("Generando respuesta..."):
+                    respuesta = qa_chain.run(pregunta)
+                
+                st.markdown("<h3 style='color: white;'>Respuesta:</h3>", unsafe_allow_html=True)
+                st.write(respuesta)
 
-        # Ejecutar la cadena de preguntas y respuestas
-        respuesta = chain.run(input_documents=docs, question=pregunta)
-        st.markdown("<h3 style='color: white;'>Respuesta:</h3>", unsafe_allow_html=True)
-        st.write(f"{respuesta}")
-
+    except Exception as e:
+        st.error(f"Ocurrió un error al procesar el archivo: {str(e)}")
 else:
     st.warning("Por favor, introduce tu API Key de OpenAI y sube un archivo PDF para continuar.")
 
-# Pie de página con información del desarrollador y logos de redes sociales
+# Pie de página con información del desarrollador y enlaces sociales
 st.markdown("""
 ---
 **Desarrollador:** Edwin Quintero Alzate<br>
