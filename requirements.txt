@@ -8,6 +8,6 @@ asyncio
 scikit-learn
 numpy
 faiss-cpu
-langchain==0.0.320
-transformers==4.33.3
-torch==2.0.1
+langchain
+transformers
+torch
